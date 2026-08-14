@@ -89,7 +89,7 @@ uvicorn jarvis.main:app --host 127.0.0.1 --port 8765 --reload
 
 ### Example Command Request (PowerShell):
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/v1/command" -Method Post -ContentType "application.json" -Body '{"raw_text": "system info"}'
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/v1/command" -Method Post -ContentType "application/json" -Body '{"raw_text": "system info"}'
 ```
 
 ---
