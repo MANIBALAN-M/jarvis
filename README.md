@@ -1,116 +1,143 @@
 # JARVIS — Desktop Automation Agent Monorepo
 
 > **Secure, Local-First, Cloud-Assisted Computer Automation Agent**  
-> Version: `v0.0.1-foundation` (Phase 0)
+> Version: `v0.1.0` (Phase 1 Complete)
+
+---
+
+## 🚀 Overview
+
+JARVIS is a production-oriented desktop automation platform. The system processes natural language text or voice commands, creates multi-step task plans, evaluates security policies, executes sandboxed operating system tools, verifies outcomes, and records structured audit trails.
 
 ---
 
 ## 📋 Prerequisites
 
-Before starting, ensure you have the following installed on your machine:
 - **Python**: 3.11 or 3.12 (`python --version`)
 - **Node.js**: v18+ LTS (`node --version`)
 - **Rust**: Latest stable (`rustc --version`)
 
 ---
 
-## 🛠️ Step-by-Step Installation & Running Guide
+## 🛠️ Step-by-Step Setup & Running Guide
 
-Follow these exact steps to set up and run JARVIS on your computer:
-
-### Step 1: Open PowerShell and Navigate to Repository Root
+### Step 1: Open PowerShell and Navigate to Monorepo Root
 ```powershell
 cd D:\Sample\jarvis
 ```
 
 ### Step 2: Create Python Virtual Environment
-Create the centralized virtual environment `.venv`:
 ```powershell
 python -m venv .venv
 ```
 
 ### Step 3: Activate Virtual Environment
 
-Depending on your current working directory in terminal:
-
-- **If you are at Root (`D:\Sample\jarvis`):**
+- **From Repository Root (`D:\Sample\jarvis`):**
   ```powershell
   .\.venv\Scripts\Activate.ps1
   ```
-- **If you are inside Agent folder (`D:\Sample\jarvis\apps\agent`):**
+- **From Agent Subdirectory (`D:\Sample\jarvis\apps\agent`):**
   ```powershell
   ..\..\.venv\Scripts\Activate.ps1
   ```
-- **To deactivate at any time:**
+- **To deactivate:**
   ```powershell
   deactivate
   ```
 
-*(You will see `(.venv)` appear on the left side of your PowerShell prompt when activated.)*
-
-### Step 4: Upgrade `pip`
+### Step 4: Install Dependencies from `requirements.txt`
 ```powershell
 python -m pip install --upgrade pip
-```
-
-### Step 5: Install Dependencies using `requirements.txt`
-Install all required packages from `requirements.txt`:
-```powershell
 pip install -r requirements.txt
 ```
 
-### Step 6: Install Agent Package in Editable Mode
-Install the local agent package so Python can resolve imports (`jarvis` package):
+### Step 5: Install Agent Package in Editable Mode
 ```powershell
 cd D:\Sample\jarvis\apps\agent
 pip install -e ".[dev]"
 ```
 
-### Step 7: Run Automated Test Suite
-Verify that all Pydantic contracts, policies, and base classes pass tests:
+### Step 6: Run Code Linter & Automated Test Suite
 ```powershell
+# Run Ruff code linter
+python -m ruff check src tests
+
+# Run Pytest suite
 python -m pytest -v
+```
+
+### Step 7: Launch Local Agent API Server
+Start the local FastAPI server bound exclusively to `127.0.0.1:8765`:
+
+```powershell
+# From apps/agent directory:
+uvicorn jarvis.main:app --host 127.0.0.1 --port 8765 --reload
 ```
 
 ---
 
-## 📂 Monorepo Repository Structure
+## 🌐 API & WebSocket Endpoints (`127.0.0.1:8765`)
+
+| Endpoint | Type | Description |
+| :--- | :--- | :--- |
+| `GET /health` | REST | Agent health check (`{"status": "healthy", "version": "0.1.0"}`) |
+| `POST /api/v1/command` | REST | Submit natural language command payload |
+| `GET /api/v1/tasks/{task_id}`| REST | Retrieve task status and step details |
+| `GET /api/v1/audit` | REST | Query append-only audit event logs |
+| `WS /api/v1/ws` | WebSocket | Real-time task step execution streaming |
+
+### Example Command Request (PowerShell):
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8765/api/v1/command" -Method Post -ContentType "application.json" -Body '{"raw_text": "system info"}'
+```
+
+---
+
+## 🛡️ Security & Architecture Principles
+
+1. **Central Workspace Enforcement**: Filesystem and terminal `cwd` operations resolve strictly against trusted `AgentSettings.workspace_root`.
+2. **HMAC Cryptographic Approval Proof**: Medium/high-risk actions (`ASK_USER`) require a HMAC-SHA256 token (`generate_approval_token`) before execution.
+3. **Non-Blocking Async Execution**: Filesystem I/O and process launches run on dedicated threadpools via `asyncio.to_thread`.
+4. **Tool-Specific Outcome Verification**: `OutcomeVerifier` checks file existence, size, exit codes, and process execution.
+5. **User Error Sanitization**: Sanitizes raw Python stack traces into user-friendly error summaries.
+6. **Audit Data Minimization**: Redacts passwords, tokens, secrets, and content fields in SQLite audit logs.
+
+---
+
+## 📂 Repository Layout
 
 ```
 jarvis/
 ├── .venv/                      # Centralized Python virtual environment
 ├── requirements.txt            # Global project Python dependencies
+├── LICENSE                     # MIT License
 ├── apps/
 │   ├── desktop/                # Desktop Front-End (Tauri + React + TypeScript)
-│   │   ├── frontend/           # React 18 UI components & state
-│   │   └── tauri/              # Tauri Rust native window shell
 │   └── agent/                  # Local Python Runtime & Execution Engine
-│       ├── requirements.txt    # Agent specific dependencies
-│       ├── pyproject.toml      # Agent package build metadata
-│       ├── src/jarvis/         # Main Python source package
-│       │   ├── config/         # Agent settings (127.0.0.1:8765)
-│       │   ├── core/           # Data Contracts, Router, Lifecycle
-│       │   ├── providers/      # LLM Provider Abstractions (OpenAI, Ollama)
-│       │   ├── security/       # Policy Engine & Risk Classifier
-│       │   └── tools/          # Tool Registry & Execution Engine
-│       └── tests/              # Pytest unit & integration tests
+│       ├── pyproject.toml      # Package build metadata
+│       ├── requirements.txt    # Agent dependencies
+│       ├── src/jarvis/
+│       │   ├── api/            # FastAPI REST & WebSocket routers
+│       │   ├── core/           # Data contracts, Router, Error sanitization
+│       │   ├── security/       # Policy Engine, HMAC Approval, Audit logger
+│       │   ├── storage/        # SQLite persistence (`jarvis_local.db`)
+│       │   └── tools/          # Controlled tools (system, apps, files, terminal)
+│       └── tests/              # Automated test suite (16 tests)
 ├── services/
 │   └── cloud-api/              # Cloud Control Plane (FastAPI for Cloud Run)
 ├── packages/                   # Shared Multi-Package Contracts
-│   ├── contracts/              # Shared Pydantic data models
-│   ├── tool-sdk/               # Custom Tool SDK base interfaces
-│   └── config/                 # Security, linting & styling standards
 ├── database/                   # Database DDL schemas & Alembic migrations
 ├── infrastructure/             # Docker, Cloud Run & Cloudflare manifests
 ├── JARVIS.md                   # Architecture & Roadmap documentation
 ├── ARCHITECTURE.md             # Complete Engineering Technical Specification
-└── README.md                   # Complete Setup & Running Guide (this file)
+└── README.md                   # Setup & Running Guide (this file)
 ```
 
 ---
 
-## 💻 Phase Roadmap Summary
+## 💻 Phase Execution Roadmap
 
-1. **Phase 0 (Foundation - Complete)**: Monorepo layout, Pydantic type contracts, policy engine base, `requirements.txt`, 100% test pass.
-2. **Phase 1 (Local Agent Core - Next)**: FastAPI server on `127.0.0.1:8765`, SQLite task store, local tools (`filesystem`, `terminal`, `apps`).
-3. **Phase 2 (Desktop UI)**: React frontend + Tauri desktop shell with tray & risk approval popups.
+- [x] **Phase 0 (v0.0.1)**: Monorepo layout, Pydantic type contracts, CI pipeline.
+- [x] **Phase 1 (v0.1.0)**: Local agent server (`127.0.0.1:8765`), SQLite persistence, router, executor, verifier, controlled tools, HMAC security.
+- [ ] **Phase 2 (v0.2.0)**: React + Tauri desktop shell, system tray, and approval popup UI.

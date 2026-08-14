@@ -1,14 +1,14 @@
 # JARVIS Local Agent Core (`apps/agent`)
 
-This sub-package contains the Python local runtime, Policy Engine, Command Router, and Execution Engine for JARVIS.
+> Version: `v0.1.0` (Phase 1 Complete)
+
+Local Agent Core runtime, FastAPI server (`127.0.0.1:8765`), SQLite task engine, Policy & Security Engine, Command Router, Task Executor, Outcome Verifier, and controlled tools suite.
 
 ---
 
-## ⚡ How to Run & Test from `apps/agent`
+## ⚡ Quick Running Commands
 
-### 1. Activate the Root Virtual Environment
-Since `.venv` is located at the repository root (`../../.venv`), activate it using relative pathing:
-
+### 1. Activate Virtual Environment
 ```powershell
 # From D:\Sample\jarvis\apps\agent
 ..\..\.venv\Scripts\Activate.ps1
@@ -19,15 +19,27 @@ Since `.venv` is located at the repository root (`../../.venv`), activate it usi
 pip install -e ".[dev]"
 ```
 
-### 3. Run Pytest Suite
+### 3. Run Code Linter & Unit Tests
 ```powershell
+# Run Ruff code linter
+python -m ruff check src tests
+
+# Run Pytest suite (16 tests)
 python -m pytest -v
 ```
 
-### 4. Package Structure
-- `src/jarvis/config/`: Settings & environment models.
-- `src/jarvis/core/`: `Command`, `TaskPlan`, `PolicyResult` data contracts.
-- `src/jarvis/providers/`: LLM provider interfaces (`BaseLLMProvider`).
-- `src/jarvis/security/`: Policy Engine (`BasePolicyEngine`) and Risk Classifier.
-- `src/jarvis/tools/`: `BaseTool` & `ToolExecutionResult`.
-- `tests/`: Automated unit tests.
+### 4. Launch Local Agent API Server
+```powershell
+uvicorn jarvis.main:app --host 127.0.0.1 --port 8765 --reload
+```
+
+---
+
+## 🛡️ Architecture & Security Features
+
+- **Central Workspace Enforcement**: Sandboxing via `is_path_safe` tied to `AgentSettings.workspace_root`.
+- **Terminal `cwd` Boundary**: Path safety checks for process execution working directories.
+- **HMAC Cryptographic Approval Proof**: Token-based validation (`verify_approval`) for `ASK_USER` policy decisions.
+- **Outcome Verification**: `OutcomeVerifier` checks file existence, size, exit codes, and execution outcomes.
+- **Error Sanitization**: Exposes clean summaries (`sanitize_user_error`) instead of raw stack traces.
+- **Audit Minimization**: Data redacting for passwords, secrets, and content in SQLite logs.
