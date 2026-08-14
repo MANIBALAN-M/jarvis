@@ -5,6 +5,24 @@ from typing import Any
 from jarvis.storage.repositories.audit_repository import SQLiteAuditRepository
 from jarvis.storage.sqlite import get_sqlite_manager
 
+SENSITIVE_KEYS = {"content", "password", "token", "secret", "key", "credentials"}
+
+
+def sanitize_args_summary(args: dict[str, Any] | None) -> str:
+    """Mask sensitive parameter values and summarize args for audit data minimization."""
+    if not args:
+        return ""
+    sanitized: dict[str, Any] = {}
+    for k, v in args.items():
+        if k.lower() in SENSITIVE_KEYS:
+            sanitized[k] = "[REDACTED]"
+        else:
+            val_str = str(v)
+            sanitized[k] = val_str[:32] + "..." if len(val_str) > 32 else v
+
+    res = str(sanitized)
+    return res[:128]
+
 
 class AuditLogger:
     """Central audit logging interface for security-relevant tool actions."""
@@ -25,13 +43,13 @@ class AuditLogger:
         result_status: str = "",
         details: str = "",
     ) -> str:
-        args_str = str(args) if args else ""
+        summary = sanitize_args_summary(args)
         return self.repo.record_event(
             event_type=event_type,
             tool_id=tool_id,
             risk_level=risk_level,
             decision=decision,
-            args_summary=args_str[:256],
+            args_summary=summary,
             result_status=result_status,
-            details=details,
+            details=details[:256],
         )

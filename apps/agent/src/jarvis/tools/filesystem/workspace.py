@@ -11,10 +11,10 @@ from jarvis.core.contracts import RiskLevel
 from jarvis.tools.base import BaseTool, ToolExecutionResult
 
 
-def is_path_safe(target_path: str, allowed_root: str | None = None) -> bool:
-    """Validate that path resolution stays within approved workspace root."""
+def is_path_safe(target_path: str) -> bool:
+    """Validate that path resolution stays strictly within trusted workspace root."""
     try:
-        root = allowed_root or get_settings().workspace_root
+        root = get_settings().workspace_root
         resolved_target = Path(target_path).resolve()
         resolved_root = Path(root).resolve()
         return resolved_target == resolved_root or resolved_root in resolved_target.parents
@@ -26,7 +26,6 @@ def is_path_safe(target_path: str, allowed_root: str | None = None) -> bool:
 class FileReadInput(BaseModel):
     file_path: str = Field(..., description="Target file path to read")
     max_bytes: int = Field(65536, ge=1, le=500000, description="Max bytes to read (default: 64KB)")
-    workspace_root: str | None = Field(None, description="Optional custom workspace root directory")
 
 
 def _read_file_sync(file_path: str, max_bytes: int) -> tuple[str, bool]:
@@ -42,11 +41,11 @@ class FileReadTool(BaseTool):
     risk_level = RiskLevel.LOW
     args_schema = FileReadInput
 
-    async def execute(self, file_path: str, max_bytes: int = 65536, workspace_root: str | None = None) -> ToolExecutionResult:
-        if not is_path_safe(file_path, workspace_root):
+    async def execute(self, file_path: str, max_bytes: int = 65536) -> ToolExecutionResult:
+        if not is_path_safe(file_path):
             return ToolExecutionResult(
                 status="denied",
-                output_summary=f"Access denied: path '{file_path}' resolves outside allowed workspace.",
+                output_summary=f"Access denied: path '{file_path}' resolves outside allowed workspace root.",
                 exit_code=1,
             )
 
@@ -67,10 +66,10 @@ class FileReadTool(BaseTool):
                 exit_code=0,
                 truncated=truncated,
             )
-        except Exception as e:  # noqa: BLE001
+        except OSError as e:
             return ToolExecutionResult(
                 status="failed",
-                output_summary=f"Error reading file '{file_path}': {e!s}",
+                output_summary=f"File system error reading '{file_path}': {e.strerror or str(e)}",
                 exit_code=1,
             )
 
@@ -79,7 +78,6 @@ class FileReadTool(BaseTool):
 class FileWriteInput(BaseModel):
     file_path: str = Field(..., description="Target file path to create/write")
     content: str = Field(..., description="Text content to write")
-    workspace_root: str | None = Field(None, description="Optional custom workspace root directory")
 
 
 def _write_file_sync(file_path: str, content: str) -> None:
@@ -94,11 +92,11 @@ class FileWriteTool(BaseTool):
     risk_level = RiskLevel.MEDIUM
     args_schema = FileWriteInput
 
-    async def execute(self, file_path: str, content: str, workspace_root: str | None = None) -> ToolExecutionResult:
-        if not is_path_safe(file_path, workspace_root):
+    async def execute(self, file_path: str, content: str) -> ToolExecutionResult:
+        if not is_path_safe(file_path):
             return ToolExecutionResult(
                 status="denied",
-                output_summary=f"Access denied: target path '{file_path}' resolves outside workspace.",
+                output_summary=f"Access denied: target path '{file_path}' resolves outside allowed workspace root.",
                 exit_code=1,
             )
 
@@ -109,10 +107,10 @@ class FileWriteTool(BaseTool):
                 output_summary=f"Successfully wrote {len(content)} characters to '{file_path}'.",
                 exit_code=0,
             )
-        except Exception as e:  # noqa: BLE001
+        except OSError as e:
             return ToolExecutionResult(
                 status="failed",
-                output_summary=f"Error writing file '{file_path}': {e!s}",
+                output_summary=f"File system error writing '{file_path}': {e.strerror or str(e)}",
                 exit_code=1,
             )
 
@@ -121,7 +119,6 @@ class FileWriteTool(BaseTool):
 class FileSearchInput(BaseModel):
     search_dir: str = Field(".", description="Directory path to search")
     pattern: str = Field("*", description="Glob pattern or file extension filter (e.g. '*.py')")
-    workspace_root: str | None = Field(None, description="Optional custom workspace root directory")
 
 
 def _search_files_sync(search_dir: str, pattern: str) -> list[str]:
@@ -140,11 +137,11 @@ class FileSearchTool(BaseTool):
     risk_level = RiskLevel.LOW
     args_schema = FileSearchInput
 
-    async def execute(self, search_dir: str = ".", pattern: str = "*", workspace_root: str | None = None) -> ToolExecutionResult:
-        if not is_path_safe(search_dir, workspace_root):
+    async def execute(self, search_dir: str = ".", pattern: str = "*") -> ToolExecutionResult:
+        if not is_path_safe(search_dir):
             return ToolExecutionResult(
                 status="denied",
-                output_summary=f"Access denied: directory '{search_dir}' resolves outside workspace.",
+                output_summary=f"Access denied: directory '{search_dir}' resolves outside allowed workspace root.",
                 exit_code=1,
             )
 
@@ -158,9 +155,9 @@ class FileSearchTool(BaseTool):
                 exit_code=0,
                 metadata={"file_count": len(matched)},
             )
-        except Exception as e:  # noqa: BLE001
+        except OSError as e:
             return ToolExecutionResult(
                 status="failed",
-                output_summary=f"Search failed in '{search_dir}': {e!s}",
+                output_summary=f"Search failed in '{search_dir}': {e.strerror or str(e)}",
                 exit_code=1,
             )

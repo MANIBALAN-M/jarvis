@@ -7,6 +7,7 @@ import pytest
 from jarvis.agent.executor import TaskExecutor
 from jarvis.core.contracts import Command, CommandSource, RiskLevel, TaskPlan, TaskStep
 from jarvis.core.router import CommandRouter
+from jarvis.security.approval import generate_approval_token
 from jarvis.storage.repositories.task_repository import SQLiteTaskRepository
 from jarvis.storage.sqlite import SQLiteManager
 
@@ -78,8 +79,10 @@ async def test_task_executor_ask_user_approval_flow(tmp_path):
     assert res1.status == "awaiting_approval"
     assert plan.steps[0].status == "awaiting_approval"
 
-    # 2. Mark step as approved and re-run executor
-    plan.steps[0].status = "approved"
+    # 2. Attach cryptographic approval token and re-run executor
+    token = generate_approval_token(plan.task_id, step.step_id, step.tool_id)
+    plan.steps[0].approval_token = token
+
     res2 = await executor.execute_plan(plan)
     assert res2.status == "success"
     assert res2.steps_executed == 1

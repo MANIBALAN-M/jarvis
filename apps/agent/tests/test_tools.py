@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from jarvis.config.settings import get_settings
 from jarvis.tools.applications.open import ApplicationOpenTool
 from jarvis.tools.filesystem.workspace import (
     FileReadTool,
@@ -42,16 +43,17 @@ async def test_filesystem_write_and_read(tmp_path):
     write_tool = FileWriteTool()
     read_tool = FileReadTool()
 
-    ws_root = str(tmp_path)
+    # Override workspace root setting to tmp_path for test
+    get_settings().workspace_root = str(tmp_path)
     target_file = str(tmp_path / "test_output.txt")
     test_content = "Hello JARVIS Automation Agent!"
 
-    # Write test with workspace root
-    w_res = await write_tool.execute(file_path=target_file, content=test_content, workspace_root=ws_root)
+    # Write test
+    w_res = await write_tool.execute(file_path=target_file, content=test_content)
     assert w_res.status == "success"
 
-    # Read test with workspace root
-    r_res = await read_tool.execute(file_path=target_file, workspace_root=ws_root)
+    # Read test
+    r_res = await read_tool.execute(file_path=target_file)
     assert r_res.status == "success"
     assert r_res.full_output == test_content
 
@@ -59,10 +61,10 @@ async def test_filesystem_write_and_read(tmp_path):
 @pytest.mark.asyncio
 async def test_filesystem_search(tmp_path):
     search_tool = FileSearchTool()
-    ws_root = str(tmp_path)
+    get_settings().workspace_root = str(tmp_path)
     (tmp_path / "sample.py").write_text("print('hello')")
 
-    res = await search_tool.execute(search_dir=ws_root, pattern="*.py", workspace_root=ws_root)
+    res = await search_tool.execute(search_dir=str(tmp_path), pattern="*.py")
     assert res.status == "success"
     assert "sample.py" in res.full_output
 

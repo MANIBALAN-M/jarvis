@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from jarvis.core.contracts import RiskLevel
 from jarvis.tools.base import BaseTool, ToolExecutionResult
+from jarvis.tools.filesystem.workspace import is_path_safe
 
 
 class TerminalRunInput(BaseModel):
@@ -41,6 +42,13 @@ class TerminalRunTool(BaseTool):
             return ToolExecutionResult(
                 status="denied",
                 output_summary=f"Command '{command}' is not in approved command allowlist.",
+                exit_code=1,
+            )
+
+        if cwd and not is_path_safe(cwd):
+            return ToolExecutionResult(
+                status="denied",
+                output_summary=f"Access denied: working directory '{cwd}' resolves outside allowed workspace root.",
                 exit_code=1,
             )
 

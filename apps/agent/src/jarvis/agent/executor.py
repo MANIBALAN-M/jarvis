@@ -4,6 +4,8 @@ from typing import Any
 
 from jarvis.agent.verifier import OutcomeVerifier
 from jarvis.core.contracts import CommandResult, PolicyDecision, PolicyResult, TaskPlan
+from jarvis.core.errors import sanitize_user_error
+from jarvis.security.approval import verify_approval
 from jarvis.security.audit import AuditLogger
 from jarvis.security.policy import BasePolicyEngine
 from jarvis.storage.repositories.task_repository import SQLiteTaskRepository
@@ -85,7 +87,9 @@ class TaskExecutor:
                     error_message=pol_res.reason,
                 )
 
-            if pol_res.decision == PolicyDecision.ASK_USER and step.status != "approved":
+            # Require cryptographic proof for ASK_USER policy decision
+            is_approved = verify_approval(plan.task_id, step, step.approval_token)
+            if pol_res.decision == PolicyDecision.ASK_USER and not is_approved:
                 step.status = "awaiting_approval"
                 step.requires_approval = True
                 self.task_repo.update_step_result(
@@ -99,7 +103,7 @@ class TaskExecutor:
                     command_id=plan.command_id,
                     task_id=plan.task_id,
                     status="awaiting_approval",
-                    summary=f"Action '{step.tool_id}' requires explicit user confirmation before execution.",
+                    summary=f"Action '{step.tool_id}' requires cryptographic user approval before execution.",
                     steps_executed=steps_executed,
                     output_data={"step_id": step.step_id, "tool_id": step.tool_id, "reason": pol_res.reason},
                 )
@@ -133,17 +137,18 @@ class TaskExecutor:
                     )
 
             except Exception as e:  # noqa: BLE001
+                user_msg = sanitize_user_error(e)
                 step.status = "failed"
-                self.task_repo.update_step_result(step.step_id, "failed", error_message=str(e))
+                self.task_repo.update_step_result(step.step_id, "failed", error_message=user_msg)
                 plan.status = "failed"
                 self.task_repo.update_task_status(plan.task_id, "failed")
                 return CommandResult(
                     command_id=plan.command_id,
                     task_id=plan.task_id,
                     status="failed",
-                    summary=f"Step execution error: {e!s}",
+                    summary=user_msg,
                     steps_executed=steps_executed,
-                    error_message=str(e),
+                    error_message=user_msg,
                 )
 
         plan.status = "completed"
