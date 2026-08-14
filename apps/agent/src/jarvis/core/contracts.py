@@ -49,6 +49,7 @@ class TaskStep(BaseModel):
     risk_level: RiskLevel = Field(default=RiskLevel.LOW)
     status: str = Field(default="pending", description="'pending', 'approved', 'running', 'success', 'failed', 'blocked'")
     requires_approval: bool = Field(default=False)
+    approval_token: str | None = Field(None, description="Cryptographic proof token for user approval")
     description: str = Field("", description="Human readable step description")
 
 

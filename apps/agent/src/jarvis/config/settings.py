@@ -20,6 +20,7 @@ class AgentSettings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
 
     # Execution limits & security
+    workspace_root: str = "."
     max_tool_execution_seconds: int = 60
     max_output_bytes: int = 65536  # 64 KB
 
