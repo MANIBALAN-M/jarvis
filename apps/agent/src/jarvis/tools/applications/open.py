@@ -1,5 +1,6 @@
 """Application Open Tool implementation."""
 
+import asyncio
 import platform
 import subprocess
 
@@ -26,6 +27,10 @@ APPROVED_APPS = {
 }
 
 
+def _launch_app_sync(cmd: list[str]) -> None:
+    subprocess.Popen(cmd, shell=False)
+
+
 class ApplicationOpenTool(BaseTool):
     """Tool launching policy-approved desktop applications."""
 
@@ -49,14 +54,14 @@ class ApplicationOpenTool(BaseTool):
             cmd.append(target_path)
 
         try:
-            subprocess.Popen(cmd, shell=False)
+            await asyncio.to_thread(_launch_app_sync, cmd)
             return ToolExecutionResult(
                 status="success",
                 output_summary=f"Successfully launched '{app_name}' ({executable}).",
                 exit_code=0,
                 metadata={"app_name": app_name, "executable": executable},
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return ToolExecutionResult(
                 status="failed",
                 output_summary=f"Failed to launch '{app_name}': {e!s}",

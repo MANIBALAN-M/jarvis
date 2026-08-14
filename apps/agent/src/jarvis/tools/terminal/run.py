@@ -84,7 +84,7 @@ class TerminalRunTool(BaseTool):
                 truncated=truncated,
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return ToolExecutionResult(
                 status="failed",
                 output_summary=f"Terminal execution error: {e!s}",

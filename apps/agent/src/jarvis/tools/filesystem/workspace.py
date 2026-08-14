@@ -1,10 +1,12 @@
 """Sandboxed Workspace Filesystem Tools."""
 
+import asyncio
 import os
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from jarvis.config.settings import get_settings
 from jarvis.core.contracts import RiskLevel
 from jarvis.tools.base import BaseTool, ToolExecutionResult
 
@@ -12,12 +14,11 @@ from jarvis.tools.base import BaseTool, ToolExecutionResult
 def is_path_safe(target_path: str, allowed_root: str | None = None) -> bool:
     """Validate that path resolution stays within approved workspace root."""
     try:
+        root = allowed_root or get_settings().workspace_root
         resolved_target = Path(target_path).resolve()
-        if allowed_root:
-            resolved_root = Path(allowed_root).resolve()
-            return resolved_target == resolved_root or resolved_root in resolved_target.parents
-        return True
-    except Exception:
+        resolved_root = Path(root).resolve()
+        return resolved_target == resolved_root or resolved_root in resolved_target.parents
+    except (OSError, ValueError):
         return False
 
 
@@ -25,6 +26,14 @@ def is_path_safe(target_path: str, allowed_root: str | None = None) -> bool:
 class FileReadInput(BaseModel):
     file_path: str = Field(..., description="Target file path to read")
     max_bytes: int = Field(65536, ge=1, le=500000, description="Max bytes to read (default: 64KB)")
+    workspace_root: str | None = Field(None, description="Optional custom workspace root directory")
+
+
+def _read_file_sync(file_path: str, max_bytes: int) -> tuple[str, bool]:
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read(max_bytes)
+    truncated = os.path.getsize(file_path) > max_bytes
+    return content, truncated
 
 
 class FileReadTool(BaseTool):
@@ -33,8 +42,8 @@ class FileReadTool(BaseTool):
     risk_level = RiskLevel.LOW
     args_schema = FileReadInput
 
-    async def execute(self, file_path: str, max_bytes: int = 65536) -> ToolExecutionResult:
-        if not is_path_safe(file_path):
+    async def execute(self, file_path: str, max_bytes: int = 65536, workspace_root: str | None = None) -> ToolExecutionResult:
+        if not is_path_safe(file_path, workspace_root):
             return ToolExecutionResult(
                 status="denied",
                 output_summary=f"Access denied: path '{file_path}' resolves outside allowed workspace.",
@@ -49,10 +58,7 @@ class FileReadTool(BaseTool):
             )
 
         try:
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read(max_bytes)
-
-            truncated = os.path.getsize(file_path) > max_bytes
+            content, truncated = await asyncio.to_thread(_read_file_sync, file_path, max_bytes)
             summary = content[:256] + ("..." if truncated else "")
             return ToolExecutionResult(
                 status="success",
@@ -61,7 +67,7 @@ class FileReadTool(BaseTool):
                 exit_code=0,
                 truncated=truncated,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return ToolExecutionResult(
                 status="failed",
                 output_summary=f"Error reading file '{file_path}': {e!s}",
@@ -73,6 +79,13 @@ class FileReadTool(BaseTool):
 class FileWriteInput(BaseModel):
     file_path: str = Field(..., description="Target file path to create/write")
     content: str = Field(..., description="Text content to write")
+    workspace_root: str | None = Field(None, description="Optional custom workspace root directory")
+
+
+def _write_file_sync(file_path: str, content: str) -> None:
+    os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
 
 
 class FileWriteTool(BaseTool):
@@ -81,8 +94,8 @@ class FileWriteTool(BaseTool):
     risk_level = RiskLevel.MEDIUM
     args_schema = FileWriteInput
 
-    async def execute(self, file_path: str, content: str) -> ToolExecutionResult:
-        if not is_path_safe(file_path):
+    async def execute(self, file_path: str, content: str, workspace_root: str | None = None) -> ToolExecutionResult:
+        if not is_path_safe(file_path, workspace_root):
             return ToolExecutionResult(
                 status="denied",
                 output_summary=f"Access denied: target path '{file_path}' resolves outside workspace.",
@@ -90,16 +103,13 @@ class FileWriteTool(BaseTool):
             )
 
         try:
-            os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
-
+            await asyncio.to_thread(_write_file_sync, file_path, content)
             return ToolExecutionResult(
                 status="success",
                 output_summary=f"Successfully wrote {len(content)} characters to '{file_path}'.",
                 exit_code=0,
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return ToolExecutionResult(
                 status="failed",
                 output_summary=f"Error writing file '{file_path}': {e!s}",
@@ -111,6 +121,17 @@ class FileWriteTool(BaseTool):
 class FileSearchInput(BaseModel):
     search_dir: str = Field(".", description="Directory path to search")
     pattern: str = Field("*", description="Glob pattern or file extension filter (e.g. '*.py')")
+    workspace_root: str | None = Field(None, description="Optional custom workspace root directory")
+
+
+def _search_files_sync(search_dir: str, pattern: str) -> list[str]:
+    matched: list[str] = []
+    for path in Path(search_dir).rglob(pattern):
+        if not any(part.startswith(".") for part in path.parts):
+            matched.append(str(path))
+        if len(matched) >= 100:
+            break
+    return matched
 
 
 class FileSearchTool(BaseTool):
@@ -119,8 +140,8 @@ class FileSearchTool(BaseTool):
     risk_level = RiskLevel.LOW
     args_schema = FileSearchInput
 
-    async def execute(self, search_dir: str = ".", pattern: str = "*") -> ToolExecutionResult:
-        if not is_path_safe(search_dir):
+    async def execute(self, search_dir: str = ".", pattern: str = "*", workspace_root: str | None = None) -> ToolExecutionResult:
+        if not is_path_safe(search_dir, workspace_root):
             return ToolExecutionResult(
                 status="denied",
                 output_summary=f"Access denied: directory '{search_dir}' resolves outside workspace.",
@@ -128,13 +149,7 @@ class FileSearchTool(BaseTool):
             )
 
         try:
-            matched: list[str] = []
-            for path in Path(search_dir).rglob(pattern):
-                if not any(part.startswith(".") for part in path.parts):
-                    matched.append(str(path))
-                if len(matched) >= 100:
-                    break
-
+            matched = await asyncio.to_thread(_search_files_sync, search_dir, pattern)
             summary = f"Found {len(matched)} matching files."
             return ToolExecutionResult(
                 status="success",
@@ -143,7 +158,7 @@ class FileSearchTool(BaseTool):
                 exit_code=0,
                 metadata={"file_count": len(matched)},
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             return ToolExecutionResult(
                 status="failed",
                 output_summary=f"Search failed in '{search_dir}': {e!s}",

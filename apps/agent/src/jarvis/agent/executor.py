@@ -39,6 +39,10 @@ class TaskExecutor:
         output_data: dict[str, Any] = {}
 
         for step in plan.steps:
+            if step.status == "success":
+                steps_executed += 1
+                continue
+
             tool = self.registry.get_tool(step.tool_id)
             if not tool:
                 step.status = "failed"
@@ -81,6 +85,25 @@ class TaskExecutor:
                     error_message=pol_res.reason,
                 )
 
+            if pol_res.decision == PolicyDecision.ASK_USER and step.status != "approved":
+                step.status = "awaiting_approval"
+                step.requires_approval = True
+                self.task_repo.update_step_result(
+                    step.step_id,
+                    "awaiting_approval",
+                    output_summary=pol_res.reason,
+                )
+                plan.status = "awaiting_approval"
+                self.task_repo.update_task_status(plan.task_id, "awaiting_approval")
+                return CommandResult(
+                    command_id=plan.command_id,
+                    task_id=plan.task_id,
+                    status="awaiting_approval",
+                    summary=f"Action '{step.tool_id}' requires explicit user confirmation before execution.",
+                    steps_executed=steps_executed,
+                    output_data={"step_id": step.step_id, "tool_id": step.tool_id, "reason": pol_res.reason},
+                )
+
             # Execute tool
             step.status = "running"
             self.task_repo.update_step_result(step.step_id, "running")
@@ -109,7 +132,7 @@ class TaskExecutor:
                         error_message=v_res.details,
                     )
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 step.status = "failed"
                 self.task_repo.update_step_result(step.step_id, "failed", error_message=str(e))
                 plan.status = "failed"

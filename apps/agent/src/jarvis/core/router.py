@@ -26,7 +26,7 @@ class CommandRouter:
             )
             return "deterministic", plan
 
-        if raw.startswith("open ") or raw.startswith("launch "):
+        if raw.startswith(("open ", "launch ")):
             app_name = raw.replace("open ", "").replace("launch ", "").strip()
             plan = TaskPlan(
                 command_id=command.command_id,
@@ -43,7 +43,7 @@ class CommandRouter:
             )
             return "deterministic", plan
 
-        if raw.startswith("read file ") or raw.startswith("inspect file "):
+        if raw.startswith(("read file ", "inspect file ")):
             file_path = raw.replace("read file ", "").replace("inspect file ", "").strip()
             plan = TaskPlan(
                 command_id=command.command_id,

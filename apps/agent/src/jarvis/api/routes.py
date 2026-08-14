@@ -92,7 +92,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     source=CommandSource.TEXT_UI,
                     created_at_ts=time.time(),
                 )
-                route_type, plan = command_router.route(cmd)
+                _route_type, plan = command_router.route(cmd)
                 if plan is None:
                     registry = get_tool_registry()
                     plan = await agent_planner.plan_command(cmd, registry.list_tools())

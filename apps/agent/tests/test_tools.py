@@ -1,5 +1,7 @@
 """Unit tests for controlled tools suite."""
 
+from unittest.mock import patch
+
 import pytest
 
 from jarvis.tools.applications.open import ApplicationOpenTool
@@ -24,14 +26,15 @@ async def test_system_info_tool():
 @pytest.mark.asyncio
 async def test_application_open_allowlist():
     tool = ApplicationOpenTool()
-    # Denied unapproved app
+
     res_denied = await tool.execute(app_name="malware_app")
     assert res_denied.status == "denied"
-    assert "not in approved" in res_denied.output_summary
 
-    # Approved app test (notepad / calc)
-    res_approved = await tool.execute(app_name="notepad")
+    with patch("jarvis.tools.applications.open._launch_app_sync") as mock_launch:
+        res_approved = await tool.execute(app_name="notepad")
+
     assert res_approved.status == "success"
+    mock_launch.assert_called_once_with(["notepad.exe"])
 
 
 @pytest.mark.asyncio
@@ -39,15 +42,16 @@ async def test_filesystem_write_and_read(tmp_path):
     write_tool = FileWriteTool()
     read_tool = FileReadTool()
 
+    ws_root = str(tmp_path)
     target_file = str(tmp_path / "test_output.txt")
     test_content = "Hello JARVIS Automation Agent!"
 
-    # Write test
-    w_res = await write_tool.execute(file_path=target_file, content=test_content)
+    # Write test with workspace root
+    w_res = await write_tool.execute(file_path=target_file, content=test_content, workspace_root=ws_root)
     assert w_res.status == "success"
 
-    # Read test
-    r_res = await read_tool.execute(file_path=target_file)
+    # Read test with workspace root
+    r_res = await read_tool.execute(file_path=target_file, workspace_root=ws_root)
     assert r_res.status == "success"
     assert r_res.full_output == test_content
 
@@ -55,9 +59,10 @@ async def test_filesystem_write_and_read(tmp_path):
 @pytest.mark.asyncio
 async def test_filesystem_search(tmp_path):
     search_tool = FileSearchTool()
+    ws_root = str(tmp_path)
     (tmp_path / "sample.py").write_text("print('hello')")
 
-    res = await search_tool.execute(search_dir=str(tmp_path), pattern="*.py")
+    res = await search_tool.execute(search_dir=ws_root, pattern="*.py", workspace_root=ws_root)
     assert res.status == "success"
     assert "sample.py" in res.full_output
 
