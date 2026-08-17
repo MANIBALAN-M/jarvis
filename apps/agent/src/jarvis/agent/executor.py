@@ -138,6 +138,17 @@ class TaskExecutor:
 
             except Exception as e:  # noqa: BLE001
                 user_msg = sanitize_user_error(e)
+                raw_details = f"Exception {type(e).__name__}: {e!s}"
+                risk_str = step.risk_level.value if hasattr(step.risk_level, "value") else str(step.risk_level)
+                self.audit_logger.log_action(
+                    event_type="tool_exception",
+                    tool_id=step.tool_id,
+                    risk_level=risk_str,
+                    decision="EXECUTION_ERROR",
+                    args=step.tool_input,
+                    result_status="failed",
+                    details=raw_details,
+                )
                 step.status = "failed"
                 self.task_repo.update_step_result(step.step_id, "failed", error_message=user_msg)
                 plan.status = "failed"

@@ -80,9 +80,91 @@ async def test_task_executor_ask_user_approval_flow(tmp_path):
     assert plan.steps[0].status == "awaiting_approval"
 
     # 2. Attach cryptographic approval token and re-run executor
-    token = generate_approval_token(plan.task_id, step.step_id, step.tool_id)
+    token = generate_approval_token(
+        plan.task_id,
+        step.step_id,
+        step.tool_id,
+        step.risk_level.value,
+        step.tool_input,
+    )
     plan.steps[0].approval_token = token
 
     res2 = await executor.execute_plan(plan)
     assert res2.status == "success"
     assert res2.steps_executed == 1
+
+
+def test_approval_token_tampered_arguments():
+    from jarvis.security.approval import verify_approval
+
+    step = TaskStep(
+        step_number=1,
+        tool_id="terminal.run",
+        tool_input={"command": "python", "args": ["--version"]},
+        risk_level=RiskLevel.MEDIUM,
+    )
+    task_id = "task-security-test"
+
+    # Valid token generated for original arguments
+    token = generate_approval_token(
+        task_id,
+        step.step_id,
+        step.tool_id,
+        step.risk_level.value,
+        step.tool_input,
+    )
+    assert verify_approval(task_id, step, token) is True
+
+    # Tamper with step tool input after token generation
+    step.tool_input = {"command": "format", "args": ["C:"]}
+    assert verify_approval(task_id, step, token) is False
+
+
+def test_approval_token_invalid_or_empty():
+    from jarvis.security.approval import verify_approval
+
+    step = TaskStep(
+        step_number=1,
+        tool_id="terminal.run",
+        tool_input={"command": "python"},
+        risk_level=RiskLevel.MEDIUM,
+    )
+    task_id = "task-invalid-test"
+
+    assert verify_approval(task_id, step, None) is False
+    assert verify_approval(task_id, step, "") is False
+    assert verify_approval(task_id, step, "bad_token_hex_12345") is False
+
+
+def test_approval_token_custom_secret():
+    step = TaskStep(
+        step_number=1,
+        tool_id="terminal.run",
+        tool_input={"command": "python"},
+        risk_level=RiskLevel.MEDIUM,
+    )
+    task_id = "task-secret-test"
+
+    t1 = generate_approval_token(task_id, step.step_id, step.tool_id, step.risk_level.value, step.tool_input, secret_key="secret_A")
+    t2 = generate_approval_token(task_id, step.step_id, step.tool_id, step.risk_level.value, step.tool_input, secret_key="secret_B")
+    assert t1 != t2
+
+
+def test_approval_token_expiry():
+    from jarvis.security.approval import verify_approval
+
+    step = TaskStep(
+        step_number=1,
+        tool_id="terminal.run",
+        tool_input={"command": "python"},
+        risk_level=RiskLevel.MEDIUM,
+    )
+    task_id = "task-expiry-test"
+
+    # Token generated with expired timestamp (expires_at in past)
+    expired_token = generate_approval_token(
+        task_id, step.step_id, step.tool_id, step.risk_level.value, step.tool_input, expires_at=1000000000, nonce="abc12345"
+    )
+    assert verify_approval(task_id, step, expired_token) is False
+
+

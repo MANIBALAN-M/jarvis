@@ -10,14 +10,21 @@ settings = get_settings()
 
 app = FastAPI(
     title="JARVIS Local Agent API",
-    version="0.1.0",
+    version="0.2.0",
     description="Local Agent Core API bound exclusively to 127.0.0.1:8765",
 )
 
 # CORS restricted exclusively to local desktop shell origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:*", "http://localhost:*", "tauri://localhost"],
+    allow_origins=[
+        "http://127.0.0.1",
+        "http://localhost",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^tauri://localhost$|^https?://tauri\.localhost$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,7 +39,7 @@ async def root_health():
     return {
         "status": "healthy",
         "agent": "jarvis-local",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "host": settings.local_host,
         "port": settings.local_port,
     }

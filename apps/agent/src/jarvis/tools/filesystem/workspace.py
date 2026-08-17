@@ -11,14 +11,14 @@ from jarvis.core.contracts import RiskLevel
 from jarvis.tools.base import BaseTool, ToolExecutionResult
 
 
-def is_path_safe(target_path: str) -> bool:
+def is_path_safe(target_path: str, workspace_root: str | None = None) -> bool:
     """Validate that path resolution stays strictly within trusted workspace root."""
     try:
-        root = get_settings().workspace_root
+        root = workspace_root if workspace_root is not None else get_settings().workspace_root
         resolved_target = Path(target_path).resolve()
         resolved_root = Path(root).resolve()
         return resolved_target == resolved_root or resolved_root in resolved_target.parents
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError):
         return False
 
 

@@ -26,8 +26,8 @@ class CommandRouter:
             )
             return "deterministic", plan
 
-        if raw.startswith(("open ", "launch ")):
-            app_name = raw.replace("open ", "").replace("launch ", "").strip()
+        if raw.startswith(("open ", "launch ")) and not any(kw in raw for kw in [" and ", " then ", " write ", " create ", " with "]):
+            app_name = raw.replace("open ", "", 1).replace("launch ", "", 1).strip()
             plan = TaskPlan(
                 command_id=command.command_id,
                 goal_summary=f"Launch application '{app_name}'",
