@@ -5,6 +5,9 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+from jarvis.config.credentials import load_or_create_credentials
+
+
 class AgentSettings(BaseSettings):
     """Local JARVIS Agent Settings."""
 
@@ -21,6 +24,8 @@ class AgentSettings(BaseSettings):
 
     # Execution limits & security
     workspace_root: str = "."
+    approval_secret_key: str | None = None
+    api_auth_token: str | None = None
     max_tool_execution_seconds: int = 60
     max_output_bytes: int = 65536  # 64 KB
 
@@ -34,5 +39,12 @@ class AgentSettings(BaseSettings):
 
 @lru_cache
 def get_settings() -> AgentSettings:
-    """Return cached instance of AgentSettings."""
-    return AgentSettings()
+    """Return cached instance of AgentSettings initialized with per-installation credentials."""
+    s = AgentSettings()
+    if not s.api_auth_token or not s.approval_secret_key:
+        creds = load_or_create_credentials()
+        if not s.api_auth_token:
+            s.api_auth_token = creds["api_auth_token"]
+        if not s.approval_secret_key:
+            s.approval_secret_key = creds["approval_secret_key"]
+    return s

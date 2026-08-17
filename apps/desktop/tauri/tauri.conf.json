@@ -1,9 +1,11 @@
 {
-  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/tooling/cli/schema.json",
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "JARVIS",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "identifier": "com.jarvis.desktop",
   "build": {
+    "beforeDevCommand": "npm --prefix ../frontend run dev",
+    "beforeBuildCommand": "npm --prefix ../frontend run build",
     "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:5173"
   },
@@ -14,11 +16,13 @@
         "width": 1200,
         "height": 800,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8765 ws://127.0.0.1:8765 http://localhost:5173 ws://localhost:5173; img-src 'self' data: asset: https://asset.localhost;"
     }
   },
   "bundle": {
