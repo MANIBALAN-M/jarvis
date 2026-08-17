@@ -9,6 +9,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  envDir: "../../..",
   envPrefix: ["VITE_", "TAURI_"],
   build: {
     target: process.env.TAURI_PLATFORM === "windows" ? "chrome105" : "safari15",

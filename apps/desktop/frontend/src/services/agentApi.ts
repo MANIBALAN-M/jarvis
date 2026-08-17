@@ -1,8 +1,18 @@
 import { AgentHealth, AuditEvent, CommandResult, TaskPlan } from '../types';
 import { getApiAuthToken as getTauriToken } from './tauriIpc';
 
-let BASE_URL = 'http://127.0.0.1:8765/api/v1';
-let API_AUTH_TOKEN = '';
+const envApiUrl = (import.meta.env.VITE_JARVIS_API_URL as string) || 'http://127.0.0.1:8765/api/v1';
+const envAuthToken = (import.meta.env.VITE_JARVIS_API_AUTH_TOKEN as string) || '';
+
+let BASE_URL = envApiUrl.replace(/\/$/, '');
+if (!BASE_URL.endsWith('/api/v1')) {
+  BASE_URL = `${BASE_URL}/api/v1`;
+}
+let API_AUTH_TOKEN = envAuthToken;
+
+export function getApiBaseUrl(): string {
+  return BASE_URL;
+}
 
 export function setApiBaseUrl(url: string) {
   BASE_URL = url.replace(/\/$/, '') + '/api/v1';

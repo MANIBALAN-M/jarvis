@@ -2,12 +2,14 @@ import { checkAgentHealth, resolveApiAuthToken } from './agentApi';
 
 type MessageCallback = (data: any) => void;
 
+const DEFAULT_WS_URL = (import.meta.env.VITE_JARVIS_WS_URL as string) || 'ws://127.0.0.1:8765/api/v1/ws';
+
 class AgentWebSocketClient {
   private socket: WebSocket | null = null;
   private listeners: Set<MessageCallback> = new Set();
   private isConnecting: boolean = false;
 
-  public async connect(url: string = 'ws://127.0.0.1:8765/api/v1/ws') {
+  public async connect(url: string = DEFAULT_WS_URL) {
     if (this.socket || this.isConnecting) return;
     this.isConnecting = true;
 
